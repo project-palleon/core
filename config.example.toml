@@ -1,0 +1,20 @@
+# what interface to bind to
+bind_addr = "0.0.0.0"
+# where the plugins connections ports begin
+bind_port_range_start = 1234
+# where the gui handler binds to
+bind_port_gui = 5000
+
+[input]
+
+[input.looping]
+command = ["/usr/bin/python", "...path/inputplugin1/main.py"]
+working_directory = "...path/inputplugin1/"
+environment = { palleon_fps = "5", PYTHONUNBUFFERED = "1" }
+
+[data]
+
+[data.activity]
+command = ["/usr/bin/python", ".../dataplugin1/main.py"]
+working_directory = "..path/dataplugin1/"
+environment = { palleon_value = "foobar", PYTHONUNBUFFERED = "1" }
