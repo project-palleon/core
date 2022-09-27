@@ -4,8 +4,7 @@ use std::net::{TcpListener, TcpStream};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::{Duration, SystemTime};
 
-use bson::{Bson, doc};
-use bson::spec::BinarySubtype;
+use bson::{Bson, doc, Document};
 use crossbeam_channel::{bounded, Receiver, Sender};
 
 use crate::Config;
@@ -13,7 +12,7 @@ use crate::image::Image;
 
 pub static GUI_HANDLER_RUNNING: AtomicBool = AtomicBool::new(false);
 
-fn handle_stream(mut stream: TcpStream, image_rx: &Receiver<Image>, data_rx: &Receiver<(String, SystemTime, Bson)>, control_tx: &Sender<(String, String)>) -> Result<bool, io::Error> {
+fn handle_stream(mut stream: TcpStream, image_rx: &Receiver<Image>, data_rx: &Receiver<(String, String, SystemTime, Bson)>, control_tx: &Sender<(String, String)>) -> Result<bool, io::Error> {
     loop {
         // collect all images in the queue
         let images = {
@@ -22,11 +21,7 @@ fn handle_stream(mut stream: TcpStream, image_rx: &Receiver<Image>, data_rx: &Re
                 let image = image_rx.recv_timeout(Duration::from_millis(5));
                 if image.is_err() { break; }
                 let image = image.unwrap();
-                images.push(Bson::Array(vec![
-                    Bson::DateTime(bson::DateTime::from_system_time(image.timestamp)),
-                    Bson::String(image.source),
-                    Bson::Binary(bson::Binary { subtype: BinarySubtype::Generic, bytes: image.data }),
-                ]));
+                images.push(Bson::Document(Document::from(image)));
             }
             Bson::Array(images)
         };
@@ -40,8 +35,9 @@ fn handle_stream(mut stream: TcpStream, image_rx: &Receiver<Image>, data_rx: &Re
                 let datum = datum.unwrap();
                 data.push(Bson::Array(vec![
                     Bson::String(datum.0),
-                    Bson::DateTime(bson::DateTime::from_system_time(datum.1)),
-                    datum.2,
+                    Bson::String(datum.1.clone()),
+                    Bson::DateTime(bson::DateTime::from_system_time(datum.2)),
+                    datum.3,
                 ]));
             }
             Bson::Array(data)
@@ -63,7 +59,7 @@ fn handle_stream(mut stream: TcpStream, image_rx: &Receiver<Image>, data_rx: &Re
     }
 }
 
-pub(crate) fn start(cfg: &Config) -> (Sender<Image>, Sender<(String, SystemTime, Bson)>, Receiver<(String, String)>) {
+pub fn start(cfg: &Config) -> (Sender<Image>, Sender<(String, String, SystemTime, Bson)>, Receiver<(String, String)>) {
     // create channels with a size of 10 (small buffer)
     let (image_tx, image_rx) = bounded(10);
     let (data_tx, data_rx) = bounded(10);

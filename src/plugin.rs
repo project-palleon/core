@@ -1,9 +1,12 @@
-use std::net::{TcpListener, TcpStream};
+use std::net::TcpListener;
 use std::process::{Child, Command};
 use std::thread;
 use std::thread::JoinHandle;
+
 use log::info;
+
 use crate::config::PluginConfig;
+use crate::wrapped_stream::WrappedStream;
 
 // implements the functionality shared by input and data plugins, which is
 // - starting the plugin
@@ -21,8 +24,8 @@ pub enum PluginStoppedReason {
     PluginProcess,
 }
 
-pub trait Handler: Send + Sync  {
-    fn handle(&self, name: &String, stream: TcpStream);
+pub trait Handler: Send + Sync {
+    fn handle(&self, name: &String, stream: WrappedStream);
 }
 
 
@@ -44,7 +47,7 @@ impl Plugin {
 
             for stream in listener.incoming() {
                 let stream = stream.expect("opening the tcp stream failed");
-                handler.handle(&name, stream);
+                handler.handle(&name, WrappedStream::new(stream));
             }
 
             drop(listener);

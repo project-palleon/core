@@ -10,7 +10,7 @@ use bson::Bson;
 // for every data plugin it stores at max the last 10_000 values
 
 pub struct DataManager {
-    values: HashMap<String, Vec<(SystemTime, Bson)>>,
+    values: HashMap<String, HashMap<String, Vec<(SystemTime, Bson)>>>,
 }
 
 const MAX_VALUES: usize = 10000;
@@ -23,9 +23,9 @@ impl DataManager {
     }
 
 
-    pub fn add(&mut self, name: String, time: SystemTime, value: Bson) {
+    pub fn add(&mut self, plugin_name: String, source_name: String, time: SystemTime, value: Bson) {
         // get corresponding data vector
-        let vec = self.values.entry(name).or_insert(vec![]);
+        let vec = self.values.entry(plugin_name).or_insert(HashMap::new()).entry(source_name).or_insert(vec![]);
 
         // add data
         vec.push((time, value));
@@ -36,9 +36,11 @@ impl DataManager {
         }
     }
 
-    pub fn get_last(&self, name: String, x: usize) -> Option<Vec<(SystemTime, Bson)>> {
+    pub fn get_last(&self, plugin_name: String, source_name: &String, x: usize) -> Option<Vec<(SystemTime, Bson)>> {
         // is there SOMETHING stored in the values hash map?
-        let value_name = self.values.get(&name);
+        let value_name = self.values.get(&plugin_name);
+        if value_name.is_none() { return None; }
+        let value_name = value_name.unwrap().get(source_name);
         if value_name.is_none() { return None; }
 
         // ..yes, so copy the last x values and return them

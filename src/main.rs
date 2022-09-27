@@ -17,6 +17,7 @@ mod image;
 mod plugin;
 mod data_manager;
 mod gui_connector;
+mod wrapped_stream;
 
 fn check_everything_running(input_plugins: &mut Vec<Plugin>, data_plugins: &mut Vec<Plugin>) {
     let iter = input_plugins.iter_mut().chain(data_plugins.iter_mut());
@@ -25,6 +26,7 @@ fn check_everything_running(input_plugins: &mut Vec<Plugin>, data_plugins: &mut 
         // if ANYTHING (subprocess/child or thread) exists unexpectedly stop the
         // core (and everything else) one could handle this gracefully, but that would
         // be way more complicated
+        // TODO kill other? atm kill -9 $(ps aux | grep python | grep palleon | awk "{ print \$2 }")
         panic!("some thread or plugin process unexpectedly exited.")
     }
 }
@@ -67,14 +69,15 @@ fn main() {
                 // now wait BLOCKING-ly for EVERY data plugin to return something
                 let data = data_rx.recv();
 
+                // data     input
                 let data = data.unwrap();
                 // if there is a gui connected, also send the returned data to the gui
                 if GUI_HANDLER_RUNNING.load(Ordering::SeqCst) {
-                    let _ = gui_data_tx.send((data.0.clone(), data.1, data.2.clone()));
+                    let _ = gui_data_tx.send((data.0.clone(), data.1.clone(), data.2, data.3.clone()));
                 }
 
                 // add the returned data to the data manager
-                data_manager.lock().unwrap().add(data.0, data.1, data.2);
+                data_manager.lock().unwrap().add(data.0, data.1.clone(), data.2, data.3);
             }
         }
 
@@ -85,7 +88,7 @@ fn main() {
             info!("alive");
 
             // debug print last 10 values in the DataManager from the activity plugin
-            if let Some(data_time_series) = data_manager.lock().unwrap().get_last(String::from("activity"), 10) {
+            if let Some(data_time_series) = data_manager.lock().unwrap().get_last(String::from("activity"),&String::from("activity"), 10) {
                 for (i, (timestamp, data)) in data_time_series.iter().enumerate() {
                     debug!("{}: {} {:?}", i, timestamp.duration_since(UNIX_EPOCH).unwrap().as_millis(), data);
                 }
